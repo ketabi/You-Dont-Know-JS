@@ -1,5 +1,5 @@
 # You Don't Know JS Yet: Types & Grammar - 2nd Edition
-# Chapter 1: Primitives
+# Chapter 1: Primitive Values
 
 | NOTE: |
 | :--- |
@@ -13,17 +13,17 @@ Here, we'll look at the core value types of JS, specifically the non-object type
 
 JS doesn't apply types to variables or properties -- what I call, "container types" -- but rather, values themselves have types -- what I call, "value types".
 
-The language provides seven built-in, primitive (non-object) value types:
+The language provides seven built-in, primitive (non-object) value types: [^PrimitiveValues]
 
-* `null`
 * `undefined`
+* `null`
 * `boolean`
-* `string`
 * `number`
 * `bigint`
 * `symbol`
+* `string`
 
-These value-types define collections of one or more concrete values, each with a set of shared behaviors for all values of that type.
+These value-types define collections of one or more concrete values, each with a set of shared behaviors for all values of each type.
 
 ### Type-Of
 
@@ -47,6 +47,48 @@ typeof greeting;        // "string"
 ```
 
 JS variables themselves don't have types. They hold any arbitrary value, which itself has a value-type.
+
+### Non-objects?
+
+What specifically makes the 7 primitive value types distinct from the object value types (and sub-types)? Why shouldn't we just consider them all as essentially *objects* under the covers?
+
+Consider:
+
+```js
+myName = "Kyle";
+
+myName.nickname = "getify";
+
+console.log(myName.nickname);           // undefined
+```
+
+This snippet appears to silently fail to add a `nickname` property to a primitive string. Taken at face value, that might imply that primitives are really just objects under the covers, as many have (wrongly) asserted over the years.
+
+| WARNING: |
+| :--- |
+| One might explain that silent failure as an example of *auto-boxing* (see "Automatic Objects" in Chapter 3), where the primitive is implicitly converted to a `String` instance wrapper object while attempting to assign the property, and then this internal object is thrown away after the statement completes. In fact, I said exactly that in the first edition of this book. But I was wrong; oops! |
+
+Something deeper is at play, as we see in this version of the previous snippet:
+
+```js
+"use strict";
+
+myName = "Kyle";
+
+myName.nickname = "getify";
+// TypeError: Cannot create property 'nickname'
+// on string 'Kyle'
+```
+
+Interesting! In strict-mode, JS enforces a restriction that disallows setting a new property on a primitive value, as if implicitly promoting it to a new object.
+
+By contrast, in non-strict mode, JS allows the violation to go unmentioned. So why? Because strict-mode was added to the language in ES5.1 (2011), more than 15 years in, and such a change would have broken existing programs had it not been defined as sensitive to the new strict-mode declaration.
+
+So what can we conclude about the distinction between primitives and objects? Primitives are values that *are not allowed to have properties*; only objects are allowed such.
+
+| TIP: |
+| :--- |
+| This particular distinction seems to be contradicted by expressions like `"hello".length`; even in strict-mode, it returns the expected value `5`. So it certainly *seems* like the string has a `length` property! But, as just previously mentioned, the correct explanation is *auto-boxing*; we'll cover the topic in "Automatic Objects" in Chapter 3. |
 
 ## Empty Values
 
@@ -256,9 +298,9 @@ The standard notation for Unicode characters is `U+` followed by 4-6 hexadecimal
 
 The first group of 65,535 code points in Unicode is called the BMP (Basic Multilingual Plane). These can all be represented with 16 bits (2 bytes). When representing Unicode characters from the BMP, it's fairly straightforward, as they can *fit* neatly into single UTF-16 JS characters.
 
-All the rest of the code points are grouped into 16 so called "supplemental planes" or "astral planes". These code-points require more than 16 bits to represent -- 21 bits to be exact -- so when representing extended/supplemental characters above the BMP, JS actually stores these code-points as a pairing of two adjacent 16-bit code units, called *surrogate halves*.
+All the rest of the code points are grouped into 16 so called "supplemental planes" or "astral planes". These code-points require more than 16 bits to represent -- 21 bits to be exact -- so when representing extended/supplemental characters above the BMP, JS actually stores these code-points as a pairing of two adjacent 16-bit code units, called *surrogate halves* (or *surrogate pairs*).
 
-For example, the Unicode code point `127878` (hexadecimal `1F386`) is `🎆` (fireworks symbol). JS stores this in a string value as two surrogate-halve code units: `U+D83C` and `U+DF86`.
+For example, the Unicode code point `127878` (hexadecimal `1F386`) is `🎆` (fireworks symbol). JS stores this in a string value as two surrogate-halve code units: `U+D83C` and `U+DF86`. Keep in mind that these two parts of the whole character do *not* standalone; they're only valid/meaningful when paired immediately adjacent to each other.
 
 This has implications on the length of strings, because a single visible character like the `🎆` fireworks symbol, when in a JS string, is a counted as 2 characters for the purposes of the string length!
 
@@ -396,7 +438,9 @@ console.log(eTilde2);       // é
 console.log(eTilde3);       // é
 ```
 
-However, the way the `"é"` character is internally stored affects things like `length` computation of the containing string, as well as equality comparison:
+The string literal assigned to `eTilde3` in this snippet stores the accent mark as a separate *combining mark* symbol. Like surrogate pairs, a combining mark only makes sense in connection with the symbol it's adjacent to (usually after).
+
+The rendering of the Unicode symbol should be the same regardless, but how the `"é"` character is internally stored affects things like `length` computation of the containing string, as well as equality and relational comparison (more on these in Chapter 2):
 
 ```js
 eTilde1.length;             // 2
@@ -407,7 +451,7 @@ eTilde1 === eTilde2;        // false
 eTilde1 === eTilde3;        // true
 ```
 
-One particular challenge is that you may copy-paste a string with an `"é"` character visible in it, and that character may have been in the *composed* or *decomposed* form. But there's no visual way to tell, and yet the underlying string value will be different depending:
+One particular challenge is that you may copy-paste a string with an `"é"` character visible in it, and that character you copied may have been in the *composed* or *decomposed* form. But there's no visual way to tell, and yet the underlying string value in the literal will be different:
 
 ```js
 "é" === "é";           // false!!
@@ -445,6 +489,8 @@ familyEmoji;            // 👩‍👩‍👦‍👦
 ```
 
 This emoji is *not* a single registered Unicode code-point, and as such, there's no *normalization* that can be performed to compose these 7 separate code-points into a single entity. The visual rendering logic for such composite symbols is quite complex, well beyond what most of JS developers want to embed into our programs. Libraries do exist for handling some of this logic, but they're often large and still don't necessarily cover all of the nuances/variations.
+
+Unlike surrogate pairs and combining marks, the symbols in grapheme clusters can in fact act as standalone characters, but have the special combining behavior when placed adjactent to each other.
 
 This kind of complexity significantly affects length computations, comparison, sorting, and many other common string-oriented operations.
 
@@ -690,6 +736,10 @@ I'm not going to cover it exhaustively, but I think a brief primer on how number
 
 In 64-bit IEEE-754 -- so called "double-precision", because originally IEEE-754 used to be 32-bit, and now it's double that! -- the 64 bits are divided into three sections: 52 bits for the number's base value (aka, "fraction", "mantissa", or "significand"), 11 bits for the exponent to raise `2` to before multiplying, and 1 bit for the sign of the ultimate value.
 
+| NOTE: |
+| :--- |
+| Since only 52 of the 64 bits are actually used to represent the base value, `number` doesn't actually have `2^64` values in it. According to the specification for the `number` type[^NumberType], the number of values is precisely `2^64 - 2^53 + 3`, or about 18 quintillion, split about evenly between positive and negative numbers. |
+
 These bits are arranged left-to-right, as so (S = Sign Bit, E = Exponent Bit, M = Mantissa Bit):
 
 ```js
@@ -827,7 +877,7 @@ Number.isSafeInteger(2 ** 53 - 1);  // true
 
 ### Double Zeros
 
-It may surprise you to learn that JS has two zeros: `0`, and `-0` (negative zero). But what on earth is a "negative zero"? A mathematician would surely balk at such a notion.
+It may surprise you to learn that JS has two zeros: `0`, and `-0` (negative zero). But what on earth is a "negative zero"? [^SignedZero] A mathematician would surely balk at such a notion.
 
 This isn't just a funny JS quirk; it's mandated by the IEEE-754[^IEEE754] specification. All floating point numbers are signed, including zero. And though JS does kind of hide the existence of `-0`, it's entirely possible to produce it and to detect it:
 
@@ -851,6 +901,10 @@ You may wonder why we'd ever need such a thing as `-0`. It can be useful when us
 
 Without having a signed zero value, you couldn't tell which direction such an item was pointing at the moment it came to rest.
 
+| NOTE: |
+| :--- |
+| While JS defines a signed zero in the `number` type, there is no corresponding signed zero in the `bigint` number type. As such, `-0n` is just interpreted as `0n`, and the two are indistinguishable. |
+
 ### Invalid Number
 
 Mathematical operations can sometimes produce an invalid result. For example:
@@ -873,7 +927,9 @@ myAge;                  // NaN
 
 All such invalid operations (mathematical or coercive/numeric) produce the special `number` value called `NaN`.
 
-The historical root of "NaN" (including from the IEEE-754[^IEEE754] specification) is as an acronym for "Not a Number". Unfortunately, that meaning produces confusion, since `NaN` is *absolutely* a `number`.
+The historical root of "NaN" (from the IEEE-754[^IEEE754] specification) is as an acronym for "Not a Number". Technically, there are about 9 quadrillion values in the 64-bit IEEE-754 number space designated as "NaN", but JS treats all of them indistinguishably as the single `NaN` value.
+
+Unfortunately, that *not a number* meaning produces confusion, since `NaN` is *absolutely* a `number`.
 
 | TIP: |
 | :--- |
@@ -1094,12 +1150,32 @@ If the registry doesn't have a symbol under that specified *key*, a new symbol (
 
 Going in the opposite direction, if you have the symbol value itself, and want to retrieve the *key* it's registered under, `Symbol.keyFor(..)` takes the symbol itself as input, and returns the *key* (if any). That's useful in case it's more convenient to pass around the *key* string value than the symbol itself.
 
+### Object or Primitive?
+
+Unlike other primitives like `42`, where you can create multiple copies of the same value, symbols *do* act more like specific object references in that they're always completely unique (for purposes of value assignment and equality comparison). The specification also categorizes the `Symbol()` function under the "Fundamental Objects" section, calling the function a "constructor", and even defining its `prototype` property.
+
+However, as mentioned earlier, `new` cannot be used with `Symbol(..)`; this is similar to the `BigInt()` "constructor". We clearly know `bigint` values are primitives, so `symbol` values seem to be of the same *kind*.
+
+And in the specification's "Terms and Definitions", it lists symbol as a primitive value. [^PrimitiveValues] Moreover, the values themselves are used in JS programs as primitives rather than objects. For example, symbols are primarily used as keys in objects -- we know objects cannot use other object values as keys! -- along with strings, which are also primitives.
+
+As mentioned earlier, some JS engines even internally implement symbols as unique, monotonically incrementing integers (primitives!).
+
+Finally, as explained at the top of this chapter, we know primitive values are *not allowed* to have properties set on them, but are *auto-boxed* (see "Automatic Objects" in Chapter 3) internally to the corresponding object-wrapper type to facilitate property/method access. Symbols follow all these exact behaviors, the same as all the other primitives.
+
+All this considered, I think symbols are *much more* like primitives than objects, so that's how I present them in this book.
+
 ## Primitives Are Built-In Types
 
 We've now dug deeply into the seven primitive (non-object) value types that JS provides automatically built-in.
 
 Before we move on to discussing JS's built-in object value type, we want to take a closer look at the kinds of behaviors we can expect from JS values. We'll do so in-depth, in the next chapter.
 
+[^PrimitiveValues]: "4.4.5 primitive value", ECMAScript 2022 Language Specification; https://tc39.es/ecma262/#sec-primitive-value ; Accessed August 2022
+
 [^UTFUCS]: "JavaScript’s internal character encoding: UCS-2 or UTF-16?"; Mathias Bynens; January 20 2012; https://mathiasbynens.be/notes/javascript-encoding ; Accessed July 2022
 
 [^IEEE754]: "IEEE-754"; https://en.wikipedia.org/wiki/IEEE_754 ; Accessed July 2022
+
+[^NumberType]: "6.1.6.1 The Number Type", ECMAScript 2022 Language Specification; https://262.ecma-international.org/13.0/#sec-ecmascript-language-types-number-type ; Accessed August 2022
+
+[^SignedZero]: "Signed Zero", Wikipedia; https://en.wikipedia.org/wiki/Signed_zero ; Accessed August 2022
